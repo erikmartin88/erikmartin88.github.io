@@ -1,0 +1,1727 @@
+<!DOCTYPE HTML>
+
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1,user-scalable=no">
+    <meta name="description" content="The Nature Conservancy's resilient lands mapping tool to assess the resilience of natural landscapes to climate change">
+    
+    <!-- TODO  change NOINDEX NOFOLLWO to INDEX FOLLOW at launch!! -->
+    <meta name="ROBOTS" content="NOINDEX, NOFOLLOW">
+    
+    <title>Resilient Land Mapping Tool</title>
+    <link rel="stylesheet" href="http://js.arcgis.com/3.13/esri/css/esri.css">
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.10.4/themes/smoothness/jquery-ui.css">
+    <link rel="stylesheet" href= "http://js.arcgis.com/3.13/dijit/themes/tundra/tundra.css">
+    <link rel="stylesheet" href="css/app.css">
+    <!--[if IE]><html class="ie"><![endif]-->
+    <!--[if !IE]> -->
+    <link rel="stylesheet" href="css/fileupload.css">
+    <!-- <![endif]-->
+
+    <link rel="shortcut icon" href="assets/favicon.ico" />
+    <script src="//code.jquery.com/jquery-1.10.2.js"></script>
+    <script src="//code.jquery.com/ui/1.11.1/jquery-ui.js"></script>
+	<script src="http://js.arcgis.com/3.13/"></script>
+	<script>
+	  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	  	(i[r].q=i[r].q||[]).push(arguments);};i[r].l=1*new Date();a=s.createElement(o),
+	  	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m);
+	  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+	  ga('create', 'UA-52921921-1', 'auto');
+	  ga('send', 'pageview');
+	</script>
+
+    <script> 
+      var ie;
+      var map;
+      var graphic;
+      var currLocation;
+      var watchId;
+      var toc;
+      var shape; //this is a global variable for the shape returned from Portal
+             
+      //use this var as a prefix to any variable you want to make global
+      var app = {};
+      var updateMessage = "";
+   
+      require([       
+        "esri/config",
+        "esri/InfoTemplate",
+        "esri/map",
+        "esri/dijit/Basemap",
+        "esri/dijit/BasemapToggle",
+        "esri/dijit/BasemapLayer",
+        "esri/dijit/BasemapGallery",
+        "esri/dijit/Search",
+        "esri/dijit/Print",
+        "esri/tasks/PrintTemplate",
+        "esri/toolbars/draw",
+        "esri/geometry/Extent",
+        "esri/graphic",
+        "esri/graphicsUtils",
+        "esri/layers/ArcGISTiledMapServiceLayer",
+        "esri/layers/ArcGISDynamicMapServiceLayer",
+        "esri/layers/ImageParameters",
+        "esri/request",
+        "esri/geometry/scaleUtils",
+        "esri/geometry/Point", 
+        "esri/tasks/Geoprocessor", 
+        "esri/tasks/FeatureSet",
+        "esri/tasks/IdentifyTask",
+        "esri/tasks/IdentifyParameters",
+        "esri/tasks/LegendLayer",
+        "esri/config",
+        "esri/layers/FeatureLayer",
+        "esri/renderers/SimpleRenderer",
+        "esri/symbols/PictureMarkerSymbol",
+        "esri/symbols/SimpleFillSymbol",
+        "esri/symbols/SimpleLineSymbol",
+        "esri/symbols/SimpleMarkerSymbol",
+        "esri/dijit/LocateButton",
+        "esri/dijit/Legend",
+        "esri/dijit/Popup",
+        "esri/dijit/PopupTemplate",
+        "esri/renderers/ClassBreaksRenderer",
+        "dojo/dom",
+        "dojo/_base/connect",
+        "dojo/json",
+        "dojo/on",
+        "dojo/parser",
+        "dojo/sniff",
+        "dojo/_base/array",
+        "dojox/charting/Chart",
+        "dojox/charting/plot2d/Pie",
+        "dojox/charting/themes/PlotKit/green",
+        "dojox/charting/action2d/Tooltip",
+        "dojox/charting/action2d/MoveSlice",
+        "esri/Color",
+        "dojo/_base/lang",
+        "dijit/registry",       
+        "dijit/Dialog",  
+        "dojo/string",
+        "dojo/dom-construct",
+        "dojo/ready",
+        "dijit/layout/BorderContainer",
+        "dijit/layout/ContentPane",
+        "dijit/layout/AccordionContainer",
+        
+        "dojo/fx",
+        "dojo/domReady!"
+        
+      ],
+      
+//Set up and initialize******************************************
+        function (esriConfig, InfoTemplate, Map, Basemap, BasemapToggle, BasemapLayer, BasemapGallery, Search, Print, PrintTemplate, Draw, Extent, Graphic, graphicsUtils, ArcGISTiledMapServiceLayer, ArcGISDynamicMapServiceLayer, ImageParameters, request, scaleUtils, Point, Geoprocessor, FeatureSet, IdentifyTask, IdentifyParameters, LegendLayer, esriConfig, FeatureLayer,
+        SimpleRenderer, PictureMarkerSymbol, SimpleFillSymbol, SimpleLineSymbol, SimpleMarkerSymbol, LocateButton, Legend, Popup, PopupTemplate, ClassBreaksRenderer, 
+        dom, connect, JSON, on, parser, sniff, arrayUtils, Chart, Pie, theme,  Tooltip, MoveSlice,  Color, lang, registry, Dialog, string, domConstruct, ready, BorderContainer, ContentPane,AccordionContainer, fx, domReady ) 
+        {
+          ready(function(){
+          parser.parse();
+          app.gp = new esri.tasks.Geoprocessor("http://cumulus-web-adapter-1827610810.us-west-1.elb.amazonaws.com/arcgis/rest/services/easterndiv/RL_ResilienceScore/GPServer/ResilienceScore");
+          app.gpUploadURL = "http://cumulus-web-adapter-1827610810.us-west-1.elb.amazonaws.com/arcgis/rest/services/easterndiv/RL_ResilienceScore/GPServer/uploads/upload";
+          app.gp.setUpdateDelay(200); //status check in milliseconds
+          app.gpFS = new esri.tasks.Geoprocessor("http://cumulus-web-adapter-1827610810.us-west-1.elb.amazonaws.com/arcgis/rest/services/easterndiv/RL_ResilienceScoreFS/GPServer/ResilienceScore_FS");
+          app.gpFS.setUpdateDelay(200); //status check in milliseconds
+          app.gpFS.setOutputSpatialReference({wkid: 102100});
+          app.drawActive = 0;
+          app.printIterator = 0;
+         
+          app.geoNameDict = {
+			 "COASTAL__ACIDIC_GRANITIC" : "Coastal: Acidic granitic",
+			 "COASTAL__ACIDIC_SEDIMENTARY" : "Coastal: Acidic Sedimentary",
+			 "COASTAL__CALCAREOUS" : "Coastal: Calcareous",
+			 "COASTAL__COASTAL_PLAIN_LOAM_OVER_LIMESTONE" : "Coastal: Loam over Limestone",
+			 "COASTAL__COASTAL_PLAIN_SAND_OVER_LIMESTONE" : "Coastal: Sand over Limestone",
+			 "COASTAL__COASTAL_PLAIN_SILT_AND_CLAY_OVER_LIMESTONE" : "Coastal: Silt and Clay over Limestone",
+			 "COASTAL__LOAM" : "Coastal: Loam",
+			 "COASTAL__MAFIC" : "Coastal: Mafic",
+			 "COASTAL__MODERATELY_CALCAREOUS" : "Coastal: Moderately Calcareous",
+			 "COASTAL__SAND" : "Coastal: Sand",
+			 "COASTAL__SILT_CLAY" : "Coastal: Silt/Clay",
+			 "COASTAL__ULTRAMAFIC" : "Coastal: Ultramafic",
+			 "HIGH__ACIDIC_GRANITIC" : "High: Acidic Granite",
+			 "HIGH__ACIDIC_SEDIMENTARY" : "High: Acidic Sedimentary",
+			 "HIGH__ACIDIC_SHALE" : "High: Acidic Shale",
+			 "HIGH__CALCAREOUS" : "High: Calcareous",
+			 "HIGH__MAFIC" : "High: Mafic",
+			 "HIGH__MODERATELY_CALCAREOUS" : "High: Moderately Calcareous",
+			 "HIGH__SAND__LOAM__SILT_CLAY" : "High: Sand, Loam, Silt/Clay",
+			 "LOW__ACIDIC_GRANITIC" : "Low: Acidic Granite",
+			 "LOW__ACIDIC_SEDIMENTARY" : "Low: Acidic Sedimentary",
+			 "LOW__ACIDIC_SHALE" : "Low: Acidic Shale",
+			 "LOW__CALCAREOUS" : "Low: Calcareous",
+			 "LOW__COASTAL_PLAIN_LOAM_OVER_LIMESTONE" : "Low: Loam over Limestone",
+			 "LOW__COASTAL_PLAIN_SILT_AND_CLAY_OVER_LIMESTONE" : "Low: Silt and Clay over Limestone",
+			 "LOW__LOAM" : "Low: Loam",
+			 "LOW__MAFIC" : "Low: Mafic",
+			 "LOW__MODERATELY_CALCAREOUS" : "Low: Moderately Calcareous",
+			 "LOW__SAND" : "Low: Sand",
+			 "LOW__SILT_CLAY" : "Low: Silt/Clay",
+			 "LOW__ULTRAMAFIC" : "Low: Ultramafic",
+			 "MID__HIGH__VERY_HIGH__ULTRAMAFIC" : "Mid, High, Very High: Ultramafic",
+			 "MID__ACIDIC_GRANITIC" : "Mid: Acidic Granite",
+			 "MID__ACIDIC_SEDIMENTARY" : "Mid: Acidic Sedimentary",
+			 "MID__ACIDIC_SHALE" : "Mid: Acidic Shale",
+			 "MID__CALCAREOUS" : "Mid: Calcareous",
+			 "MID__LOAM" : "Mid: Loam",
+			 "MID__MAFIC" : "Mid: Mafic",
+			 "MID__MODERATELY_CALCAREOUS" : "Mid: Moderately Calcareous",
+			 "MID__SAND" : "Mid: Sand",
+			 "MID__SILT_CLAY" : "Mid: Silt/Clay",
+			 "VERY_HIGH__ACIDIC_GRANITIC" : "Very High: Acidic Granite",
+			 "VERY_HIGH__ACIDIC_SEDIMENTARY" : "Very High: Acidic Sedimentary",
+			 "VERY_HIGH__ACIDIC_SHALE" : "Very High: Acidic Shale",
+			 "VERY_HIGH__CALCAREOUS" : "Very High: Calcareous",
+			 "VERY_HIGH__MAFIC" : "Very High: Mafic",
+			 "VERY_HIGH__MODERATELY_CALCAREOUS" : "Very High: Moderately Calcareous",
+			 "VERY_HIGH__SAND__LOAM__SILT_CLAY" : "Very High: Sand, Loam, Silt/Clay",
+			 "VERY_LOW__ACIDIC_GRANITIC" : "Very Low: Acidic Granite",
+			 "VERY_LOW__ACIDIC_SEDIMENTARY" : "Very Low: Acidic Sedimentary",
+			 "VERY_LOW__ACIDIC_SHALE" : "Very Low: Acidic Shale",
+			 "VERY_LOW__CALCAREOUS" : "Very Low: Calcareous",
+			 "VERY_LOW__COASTAL_PLAIN_LOAM_OVER_LIMESTONE" : "Very Low: Loam over Limestone",
+			 "VERY_LOW__COASTAL_PLAIN_SAND_OVER_LIMESTONE" : "Very Low: Sand over Limestone",
+			 "VERY_LOW__COASTAL_PLAIN_SILT_AND_CLAY_OVER_LIMESTONE" : "Very Low: Silt and Clay over Limestone",
+			 "VERY_LOW__LOAM" : "Very Low: Loam",
+			 "VERY_LOW__MAFIC" : "Very Low: Mafic",
+			 "VERY_LOW__MODERATELY_CALCAREOUS" : "Very Low: Moderately Calcareous",
+			 "VERY_LOW__SAND" : "Very Low: Sand",
+			 "VERY_LOW__SILT_CLAY" : "Very Low: Silt/Clay",
+			 "VERY_LOW__ULTRAMAFIC" : "Very Low: Ultramafic",
+        };
+          
+          app.geoElevDict={
+             "COASTAL__ACIDIC_GRANITIC" : "Coastal",
+             "COASTAL__ACIDIC_SEDIMENTARY" : "Coastal",
+             "COASTAL__CALCAREOUS" : "Coastal",
+             "COASTAL__COASTAL_PLAIN_LOAM_OVER_LIMESTONE" : "Coastal",
+             "COASTAL__COASTAL_PLAIN_SAND_OVER_LIMESTONE" : "Coastal",
+             "COASTAL__COASTAL_PLAIN_SILT_AND_CLAY_OVER_LIMESTONE" : "Coastal",
+             "COASTAL__LOAM" : "Coastal",
+             "COASTAL__MAFIC" : "Coastal",
+             "COASTAL__MODERATELY_CALCAREOUS" : "Coastal",
+             "COASTAL__SAND" : "Coastal",
+             "COASTAL__SILT_CLAY" : "Coastal",
+             "COASTAL__ULTRAMAFIC" : "Coastal",
+             "HIGH__ACIDIC_GRANITIC" : "High",
+             "HIGH__ACIDIC_SEDIMENTARY" : "High",
+             "HIGH__ACIDIC_SHALE" : "High",
+             "HIGH__CALCAREOUS" : "High",
+             "HIGH__MAFIC" : "High",
+             "HIGH__MODERATELY_CALCAREOUS" : "High",
+             "HIGH__SAND__LOAM__SILT_CLAY" : "High",
+             "LOW__ACIDIC_GRANITIC" : "Low",
+             "LOW__ACIDIC_SEDIMENTARY" : "Low",
+             "LOW__ACIDIC_SHALE" : "Low",
+             "LOW__CALCAREOUS" : "Low",
+             "LOW__COASTAL_PLAIN_LOAM_OVER_LIMESTONE" : "Low",
+             "LOW__COASTAL_PLAIN_SILT_AND_CLAY_OVER_LIMESTONE" : "Low",
+             "LOW__LOAM" : "Low",
+             "LOW__MAFIC" : "Low",
+             "LOW__MODERATELY_CALCAREOUS" : "Low",
+             "LOW__SAND" : "Low",
+             "LOW__SILT_CLAY" : "Low",
+             "LOW__ULTRAMAFIC" : "Low",
+             "MID__HIGH__VERY_HIGH__ULTRAMAFIC" : "Mid",
+             "MID__ACIDIC_GRANITIC" : "Mid",
+             "MID__ACIDIC_SEDIMENTARY" : "Mid",
+             "MID__ACIDIC_SHALE" : "Mid",
+             "MID__CALCAREOUS" : "Mid",
+             "MID__LOAM" : "Mid",
+             "MID__MAFIC" : "Mid",
+             "MID__MODERATELY_CALCAREOUS" : "Mid",
+             "MID__SAND" : "Mid",
+             "MID__SILT_CLAY" : "Mid",
+             "VERY_HIGH__ACIDIC_GRANITIC" : "Very High",
+             "VERY_HIGH__ACIDIC_SEDIMENTARY" : "Very High",
+             "VERY_HIGH__ACIDIC_SHALE" : "Very High",
+             "VERY_HIGH__CALCAREOUS" : "Very High",
+             "VERY_HIGH__MAFIC" : "Very High",
+             "VERY_HIGH__MODERATELY_CALCAREOUS" : "Very High",
+             "VERY_HIGH__SAND__LOAM__SILT_CLAY" : "Very High",
+             "VERY_LOW__ACIDIC_GRANITIC" : "Very Low",
+             "VERY_LOW__ACIDIC_SEDIMENTARY" : "Very Low",
+             "VERY_LOW__ACIDIC_SHALE" : "Very Low",
+             "VERY_LOW__CALCAREOUS" : "Very Low",
+             "VERY_LOW__COASTAL_PLAIN_LOAM_OVER_LIMESTONE" : "Very Low",
+             "VERY_LOW__COASTAL_PLAIN_SAND_OVER_LIMESTONE" : "Very Low",
+             "VERY_LOW__COASTAL_PLAIN_SILT_AND_CLAY_OVER_LIMESTONE" : "Very Low",
+             "VERY_LOW__LOAM" : "Very Low",
+             "VERY_LOW__MAFIC" : "Very Low",
+             "VERY_LOW__MODERATELY_CALCAREOUS" : "Very Low",
+             "VERY_LOW__SAND" : "Very Low",
+             "VERY_LOW__SILT_CLAY" : "Very Low",
+             "VERY_LOW__ULTRAMAFIC" : "Very Low",
+          };
+          
+          app.geoGeoDict = {
+             "COASTAL__ACIDIC_GRANITIC" : "Acidic Granite",
+             "COASTAL__ACIDIC_SEDIMENTARY" : "Acidic Sedimentary",
+             "COASTAL__CALCAREOUS" : "Calcareous",
+             "COASTAL__COASTAL_PLAIN_LOAM_OVER_LIMESTONE" : "Loam over Limestone",
+             "COASTAL__COASTAL_PLAIN_SAND_OVER_LIMESTONE" : "Sand over Limestone",
+             "COASTAL__COASTAL_PLAIN_SILT_AND_CLAY_OVER_LIMESTONE" : "Silt and Clay over Limestone",
+             "COASTAL__LOAM" : "Loam",
+             "COASTAL__MAFIC" : "Mafic",
+             "COASTAL__MODERATELY_CALCAREOUS" : "Moderately Calcareous",
+             "COASTAL__SAND" : "Sand",
+             "COASTAL__SILT_CLAY" : "Silt/Clay",
+             "COASTAL__ULTRAMAFIC" : "Ultramafic",
+             "HIGH__ACIDIC_GRANITIC" : "Acidic Granite",
+             "HIGH__ACIDIC_SEDIMENTARY" : "Acidic Sedimentary",
+             "HIGH__ACIDIC_SHALE" : "Acidic Shale",
+             "HIGH__CALCAREOUS" : "Calcareous",
+             "HIGH__MAFIC" : "Mafic",
+             "HIGH__MODERATELY_CALCAREOUS" : "Moderately Calcareous",
+             "HIGH__SAND__LOAM__SILT_CLAY" : "Sand, Loam, Silt/Clay",
+             "LOW__ACIDIC_GRANITIC" : "Acidic Granite",
+             "LOW__ACIDIC_SEDIMENTARY" : "Acidic Sedimentary",
+             "LOW__ACIDIC_SHALE" : "Acidic Shale",
+             "LOW__CALCAREOUS" : "Calcareous",
+             "LOW__COASTAL_PLAIN_LOAM_OVER_LIMESTONE" : "Loam over Limestone",
+             "LOW__COASTAL_PLAIN_SILT_AND_CLAY_OVER_LIMESTONE" : "Silt and Clay over Limestone",
+             "LOW__LOAM" : "Loam",
+             "LOW__MAFIC" : "Mafic",
+             "LOW__MODERATELY_CALCAREOUS" : "Moderately Calcareous",
+             "LOW__SAND" : "Sand",
+             "LOW__SILT_CLAY" : "Silt/Clay",
+             "LOW__ULTRAMAFIC" : "Ultramafic",
+             "MID__HIGH__VERY_HIGH__ULTRAMAFIC" : "Ultramafic",
+             "MID__ACIDIC_GRANITIC" : "Acidic Granite",
+             "MID__ACIDIC_SEDIMENTARY" : "Acidic Sedimentary",
+             "MID__ACIDIC_SHALE" : "Acidic Shale",
+             "MID__CALCAREOUS" : "Calcareous",
+             "MID__LOAM" : "Loam",
+             "MID__MAFIC" : "Mafic",
+             "MID__MODERATELY_CALCAREOUS" : "Moderately Calcareous",
+             "MID__SAND" : "Sand",
+             "MID__SILT_CLAY" : "Silt/Clay",
+             "VERY_HIGH__ACIDIC_GRANITIC" : "Acidic Granite",
+             "VERY_HIGH__ACIDIC_SEDIMENTARY" : "Acidic Sedimentary",
+             "VERY_HIGH__ACIDIC_SHALE" : "Acidic Shale",
+             "VERY_HIGH__CALCAREOUS" : "Calcareous",
+             "VERY_HIGH__MAFIC" : "Mafic",
+             "VERY_HIGH__MODERATELY_CALCAREOUS" : "Moderately Calcareous",
+             "VERY_HIGH__SAND__LOAM__SILT_CLAY" : "Sand, Loam, Silt/Clay",
+             "VERY_LOW__ACIDIC_GRANITIC" : "Acidic Granite",
+             "VERY_LOW__ACIDIC_SEDIMENTARY" : "Acidic Sedimentary",
+             "VERY_LOW__ACIDIC_SHALE" : "Acidic Shale",
+             "VERY_LOW__CALCAREOUS" : "Calcareous",
+             "VERY_LOW__COASTAL_PLAIN_LOAM_OVER_LIMESTONE" : "Loam over Limestone",
+             "VERY_LOW__COASTAL_PLAIN_SAND_OVER_LIMESTONE" : "Sand over Limestone",
+             "VERY_LOW__COASTAL_PLAIN_SILT_AND_CLAY_OVER_LIMESTONE" : "Silt and Clay over Limestone",
+             "VERY_LOW__LOAM" : "Loam",
+             "VERY_LOW__MAFIC" : "Mafic",
+             "VERY_LOW__MODERATELY_CALCAREOUS" : "Moderately Calcareous",
+             "VERY_LOW__SAND" : "Sand",
+             "VERY_LOW__SILT_CLAY" : "Silt/Clay",
+             "VERY_LOW__ULTRAMAFIC" : "Ultramafic",
+          };
+          
+          //test if running on Google Chrome -- if so, disable geolocate button, since it won't work unless on HTTPS and
+          //we can't use HTTPS on an Amazon S3 bucket
+          // from http://stackoverflow.com/questions/4565112/javascript-how-to-find-out-if-the-user-browser-is-chrome/13348618#13348618
+
+			var isChromium = window.chrome,
+			    winNav = window.navigator,
+			    vendorName = winNav.vendor,
+			    isOpera = winNav.userAgent.indexOf("OPR") > -1,
+			    isIEedge = winNav.userAgent.indexOf("Edge") > -1,
+			    isIOSChrome = winNav.userAgent.match("CriOS");
+		
+			if(isIOSChrome){
+			   // is Google Chrome on IOS
+			   app.useGeolocate = false;
+			} else if(isChromium !== null && isChromium !== undefined && vendorName === "Google Inc." && isOpera == false && isIEedge == false) {
+			   // is Google Chrome
+			   app.useGeolocate = false;
+			} else { 
+			   // not Google Chrome 
+			   app.useGeolocate = true;
+			}
+          
+          
+        
+          esriConfig.defaults.io.corsEnabledServers.push("cumulus-web-adapter-1827610810.us-west-1.elb.amazonaws.com");
+          esriConfig.defaults.io.corsEnabledServers.push("50.18.215.52");
+          esriConfig.defaults.io.corsEnabledServers.push("maps.tnc.org");
+          esriConfig.defaults.io.corsEnabledServers.push("localhost");
+          esriConfig.defaults.io.proxyURL="/proxy/";
+          var legendDijit;
+          
+          var portalUrl = "http://www.arcgis.com";
+          var identifyTask, identifyParams, identifyGrid;
+          var polyParcel =SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID,
+                  new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
+                    new Color([112, 112, 112]), 1), new Color([136, 136, 136, 0.5]));;
+          esriConfig.defaults.io.proxyUrl = "/proxy";
+          var clickMode = "identify";
+          var identifyListener;
+          var tb;
+		  var currentScale;
+		  var statusCallbackIterator = 0; //post an alert on the first status callback
+	  
+          map = new Map("map", {
+            basemap: "topo",
+            center: [-72, 45],
+            zoom: 5,
+            slider: true,
+            infoWindow: popup
+          });
+      
+          //Geolocate
+          if (app.useGeolocate == true){
+	          geoLocate = new LocateButton({
+	            map: map
+	          }, "LocateButton");
+	          geoLocate.startup(); 
+       	  }
+          var search = new Search({
+             map: map
+          }, "search");
+          search.startup();
+       
+          map.on("load", initFunc);
+        
+          //get tiled map layers      
+          var resTiles = new ArcGISTiledMapServiceLayer("http://tiles.arcgis.com/tiles/F7DSX1DSNSiWmOqh/arcgis/rest/services/RL_resilienceTiles/MapServer", {visible: true});                         
+          var geoTiles = new ArcGISTiledMapServiceLayer("http://tiles.arcgis.com/tiles/F7DSX1DSNSiWmOqh/arcgis/rest/services/RL_geoTiles/MapServer", {visible: false});
+          var landDivTiles = new ArcGISTiledMapServiceLayer("http://tiles.arcgis.com/tiles/F7DSX1DSNSiWmOqh/arcgis/rest/services/RL_landscapeDiversityTiles/MapServer", {visible: false});                  
+          var localConnTiles =new ArcGISTiledMapServiceLayer("http://tiles.arcgis.com/tiles/F7DSX1DSNSiWmOqh/arcgis/rest/services/RL_localConnectednessTiles/MapServer", {visible: false});                  
+          var landformTiles = new ArcGISTiledMapServiceLayer("http://tiles.arcgis.com/tiles/F7DSX1DSNSiWmOqh/arcgis/rest/services/RL_landformsTiles/MapServer", {visible: false});
+          var flowsTiles = new ArcGISTiledMapServiceLayer("http://tiles.arcgis.com/tiles/F7DSX1DSNSiWmOqh/arcgis/rest/services/RL_flowsTiles/MapServer", {visible: false});
+          var flowsDescTiles = new ArcGISTiledMapServiceLayer("http://tiles.arcgis.com/tiles/F7DSX1DSNSiWmOqh/arcgis/rest/services/RL_flowsDescriptionsTiles/MapServer", {visible: false});    
+          var ripCorrTiles = new ArcGISTiledMapServiceLayer("http://tiles.arcgis.com/tiles/F7DSX1DSNSiWmOqh/arcgis/rest/services/RL_riparianCache/MapServer", {visible: false});    
+          var dynamicGridURL = "http://cumulus-web-adapter-1827610810.us-west-1.elb.amazonaws.com/arcgis/rest/services/easterndiv/RL_dynamicGrids/MapServer";    
+          //set Image Parameters to access map service sublayers.  LAYER_OPTION_SHOW only includes the listed layer
+		  var resGridIPs = new ImageParameters();
+		  resGridIPs.layerIds = [0];
+ 		  resGridIPs.layerOption = ImageParameters.LAYER_OPTION_SHOW;	  
+		  var landDivIPs = new ImageParameters();
+		  landDivIPs.layerIds = [1];
+ 		  landDivIPs.layerOption = ImageParameters.LAYER_OPTION_SHOW;	
+		  var localConnIPs = new ImageParameters();
+		  localConnIPs.layerIds = [2];
+ 		  localConnIPs.layerOption = ImageParameters.LAYER_OPTION_SHOW;	
+ 		  var geoIPs = new ImageParameters();
+		  geoIPs.layerIds = [3];
+ 		  geoIPs.layerOption = ImageParameters.LAYER_OPTION_SHOW;	
+ 		  var landformIPs = new ImageParameters();
+		  landformIPs.layerIds = [4];
+ 		  landformIPs.layerOption = ImageParameters.LAYER_OPTION_SHOW;	
+ 		  var flowsIPs = new ImageParameters();
+		  flowsIPs.layerIds = [5];
+ 		  flowsIPs.layerOption = ImageParameters.LAYER_OPTION_SHOW;	
+ 		  var flowsDescIPs = new ImageParameters();
+		  flowsDescIPs.layerIds = [6];
+ 		  flowsDescIPs.layerOption = ImageParameters.LAYER_OPTION_SHOW;	
+  		  var ripCorrIPs = new ImageParameters();
+		  ripCorrIPs.layerIds = [7];
+ 		  ripCorrIPs.layerOption = ImageParameters.LAYER_OPTION_SHOW;			  
+ 		  
+		  
+		  var resGrid = new ArcGISDynamicMapServiceLayer(dynamicGridURL, {visible: false, "imageParameters": resGridIPs});
+		  var landDivGrid = new ArcGISDynamicMapServiceLayer(dynamicGridURL, {visible: false, "imageParameters": landDivIPs});
+		  var localConnGrid = new ArcGISDynamicMapServiceLayer(dynamicGridURL, {visible: false, "imageParameters": localConnIPs});
+		  var geoGrid = new ArcGISDynamicMapServiceLayer(dynamicGridURL, {visible: false, "imageParameters": geoIPs});
+		  var landformGrid = new ArcGISDynamicMapServiceLayer(dynamicGridURL, {visible: false, "imageParameters": landformIPs});  
+		  var flowsGrid = new ArcGISDynamicMapServiceLayer(dynamicGridURL, {visible: false, "imageParameters": flowsIPs});  
+		  var flowsDescGrid = new ArcGISDynamicMapServiceLayer(dynamicGridURL, {visible: false, "imageParameters": flowsDescIPs});  
+          var ripCorrGrid = new ArcGISDynamicMapServiceLayer(dynamicGridURL, {visible: false, "imageParameters": ripCorrIPs});  
+          app.mapLayers = [resTiles, geoTiles, landDivTiles, localConnTiles,  landformTiles, flowsTiles, flowsDescTiles, ripCorrTiles, resGrid, localConnGrid, landDivGrid, geoGrid, landformGrid, flowsGrid, flowsDescGrid, ripCorrGrid];
+      
+          
+          map.addLayers(app.mapLayers);    
+            
+          var popup = new Popup({
+            fillSymbol: new SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID,
+              new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
+                new Color([255, 0, 0]), 2), new Color([255, 255, 0, 0.25])) 
+                      	          	
+          }, domConstruct.create("div"));
+        
+	    var resultDialog = new Dialog({
+	    	id: "resultDialog",
+	        title: "Resilient Land Summary",
+	        style: {
+	        	width : "550px",
+	        	maxWidth: "650px",
+	        	overflow: "hidden",
+	        }
+	    });
+
+		var splashDialog = new Dialog({
+	        title: "Project Info and Legal Disclaimers",
+	        id: "splashDialog",
+	        disableCloseButton: true,
+	        style: {
+	        	width : "550px",
+	        	height : "650px",
+	        	color : "black",	        		        	
+	        }	        
+	    });
+
+		var gpStartDialog = new Dialog({
+	        title: "Your Analysis Has Begun",
+	        id: "gpStartDialog",
+	        disableCloseButton: false,
+	        style: {
+	        	width : "250px",
+	        	height : "175px",
+	        	color : "black",	        	
+	        }	        
+	    });
+
+
+          function initFunc() {
+		  
+
+              //Idenitfy
+              activateIdentify();
+              identifyRes = new IdentifyTask(dynamicGridURL);
+              identifyParams = new IdentifyParameters();
+              identifyParams.tolerance = 3;
+              identifyParams.returnGeometry = true;
+              identifyParams.layerIds = [0];
+              identifyParams.layerOption = IdentifyParameters.LAYER_OPTION_ALL;
+              identifyParams.width = map.width;
+              identifyParams.height = map.height;
+              
+              //initialize the draw tool
+              tb = new Draw(map);
+	          dojo.connect(tb, "onDrawEnd", addParcelGraphic);
+	          app.sketchButton = (dojo.byId("Polygon"));
+		      dojo.connect(app.sketchButton,"click", function(){
+		      	if (app.drawActive == 0){
+		      		console.log(app.drawActive);
+			      	tb.activate(esri.toolbars.Draw.POLYGON);
+			      	app.drawActive = 1;
+			      	clickMode = "draw";
+					activateIdentify();
+					app.sketchButton.style.background = "#000000";
+		            
+	           }
+	           else if (app.drawActive == 1){
+		           	tb.deactivate();
+		           	app.drawActive = 0;
+		           	map.enableMapNavigation();
+		           	clickMode = "identify";
+		           	activateIdentify();
+		           	app.sketchButton.style.background = "#666666";
+	           }
+		      });            
+		      
+		      currentScale = map.getScale();
+		      //Format text for Dialog
+			  var splashHeader = string.substitute("<h3 align=\"center\">Welcome to the Resilient Land Mapping Tool</h3>");
+			  var splashImage = '<table align="center"><tr align="center"><td align="center"><a href="https://www.conservationgateway.org/ConservationByGeography/NorthAmerica/UnitedStates/edc/reportsdata/terrestrial/resilience/Pages/default.aspx" target="_blank"><img src="assets/cover.png" alt="Terrestrial Resilience" ></a></td></tr></table>';
+			  var splashConcepts = '<p>Visit the <a href="coreConcepts.html" target="_blank">Core Concepts</a> page for a quick explanation of the data and results from this project or download a <a href="https://www.conservationgateway.org/ConservationByGeography/NorthAmerica/UnitedStates/edc/Documents/ED_Resiliency%20Fact%20Sheet_full%20region_07112014%20(1).pdf" target="_blank">2-page fact sheet</a> for a general project overview. This mapping application and the data within it were developed with grant funding from the <a href="http://www.ddcf.org/" target="blank">Doris Duke Charitable Foundation</a></p>';
+			  var splashLegal ='<p><strong>By entering this site, you agree to the terms outlined below and in the <a href="http://www.nature.org/about-us/governance/terms-of-use/index.htm?src=f9" target="_blank">Legal Disclosures</a> and <a href="http://www.nature.org/about-us/governance/privacy-policy.xml?src=f6" target="_blank">Privacy Statement</a>.</strong></p>';
+			  var splashLegal2 = '<div id="splashLegal2"> This data is designed to be used as a screening-level tool that can be used to help inform conservation decisions. These products are not intended to be a replacement for site-specific knowledge nor a prescription for on-the-ground action. Every commercially reasonable effort has been made to assure the accuracy of the map and data. However, the data being provided herein are intended for informational purposes only. No guarantee is made as to the accuracy of data and they should not be relied upon for any purpose other than general information. <br><br> DISCLAIMERS AND LIMITATION OF LIABILITY. ALL CONTENT ON THE WEBSITE IS PROVIDED TO YOU ON AN "AS IS" "AS AVAILABLE" BASIS WITHOUT WARRANTY OF ANY KIND EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. THE NATURE CONSERVANCY MAKES NO WARRANTY AS TO THE ACCURACY, COMPLETENESS OR RELIABILITY OF ANY CONTENT AVAILABLE THROUGH THE WEBSITE. YOU ARE RESPONSIBLE FOR VERIFYING ANY INFORMATION BEFORE RELYING ON IT. USE OF THE WEBSITE AND THE CONTENT AVAILABLE ON THE WEBSITE IS AT YOUR SOLE RISK.</div>';
+			  var splashAgree = '<p align="center"><strong>Do you agree to the terms and restrictions described above?</strong></p>';
+			  var splashButtons =   "<div><table align=\"center\">" +
+										"<tr align=\"center\">" +
+								            "<td align=\"center\" colspan=\"2\">" +
+								                "<button data-dojo-type=\"dijit.form.Button\" type=\"button\"" +
+								                    "data-dojo-props=\"onClick:function(){dijit.byId('splashDialog').hide();}\">Accept</button>" +
+								                "<button data-dojo-type=\"dijit.form.Button\" type=\"button\" "+
+								                    "data-dojo-props=\"onClick:function(){window.open('http://www.nature.org', '_self');}\">Decline</button>" +
+								            "</td>"+
+								        "</tr>" +					
+								    "</table></div>" ;
+								    
+        	  var content = splashHeader + splashImage + splashConcepts + splashLegal + splashLegal2 + splashButtons;
+
+        	  splashDialog.set("content", content);
+        	  splashDialog.show();  
+        	  dojo.style(dijit.byId("splashDialog").closeButtonNode,"display","none");    
+            
+              //set up GP warning Dialog
+              var gpStartText = "It will take approximately 30 seconds to run.  You may continue to use the map in the meantime. Thanks for your patience.";
+              var gpStartButtons =   "<table align=\"center\">" +"<tr align=\"center\">" +"<td align=\"center\" colspan=\"2\">" +"<button data-dojo-type=\"dijit.form.Button\" type=\"button\"" +"data-dojo-props=\"onClick:function(){dijit.byId('gpStartDialog').hide();}\">OK</button>" +"</td>"+"</tr>" +"</table>" ;
+              gpStartContent = gpStartText + "<br><br>" + gpStartButtons;
+              gpStartDialog.set("content", gpStartContent);
+              
+
+
+		   
+               //Set up legend
+               map.on("layers-add-result", function (evt) {
+                var layerInfo = arrayUtils.map(evt.layers, function (layer, index) {
+                      return {layer:layer.layer, title:" "};
+                });                
+                if (layerInfo.length > 0) {
+                	  
+                   legendDijit = new Legend({
+                        map: map,
+                        layerInfos: layerInfo
+                      }, "legendDiv");
+                   legendDijit.startup();
+                }
+               });  
+               
+               //Get scale -- if resGridTiled is turned on & zoomed in beyond tile scale range, switch to resgrid (dyn)
+               map.on("extent-change", function(evt){
+				getResData();
+              });
+            
+
+            
+            }
+
+
+//Helper functions*******************************
+            function numberWithCommas(x) {
+                return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            }
+
+            function isInt(n) {
+               return n % 1 === 0;
+            }
+            
+            //round floats to 2 decimals
+            function roundNumer(val){
+	            if(isNaN(val) == false){
+	                nVal = parseFloat(val);
+	                var nVal=Math.round((nVal + 0.00001)*100)/100;
+	                val = nVal;
+	                return val;
+	            } 
+            }
+            
+            //add commas to integers
+            function addNumberCommas(val){
+	            if (isInt(val) === true){
+	                val = numberWithCommas(val);
+	            }
+	            return val;
+            }
+            
+			//when it's visible (after GP service) show result dialog if button clicked
+			  window.showResultDialog = function(){	
+					resultDialog.show();
+			  };
+			  
+			  // window popup for SD definition
+			 window.windowPopup = function(mylink, windowname){
+				if (! window.focus)return true;
+					var href;
+				if (typeof(mylink) == 'string')
+				   href=mylink;
+				else
+				   href=mylink.href;
+				winPop = window.open(href, windowname, 'width=650,height=450,scrollbars=yes');
+				winPop.moveTo(400, 200);
+				return false;
+				};
+			  
+			  
+			  //bin scores into categories
+			  function binScores(value){
+				if (value >0){aboveBelow = "above";}
+				else{aboveBelow = "below";}           			
+				if (value < -2000){var value = "Far Below Average";}
+				else if (value >= -2.000 && value <-1.000)  {var categ = "Below Average";}
+				else if (value >= -1.000 && value <-0.500)  {var categ = "Slightly Below Average";}
+				else if (value >= -0.500 && value <0.500)  {var categ = "Average";}
+				else if (value >= 0.500 && value <1.000)  {var categ = "Slightly Above Average";}
+				else if (value >= 1.000 && value <2.000)  {var categ = "Above Average";}
+				else if (value >= 2.000)  {var categ = "Far Above Average";}
+				
+				return categ;
+              }
+			  
+			  
+//End helper functions*******************************    
+
+//User map service functions**************************************
+			
+			document.getElementById('addMapServButton').onclick = function() {
+				if (app.userMapLayer){map.removeLayer(app.userMapLayer);}
+				var userURL = document.getElementById("userMapServ").value;
+				userLayer = userURL.substr(userURL.lastIndexOf('/') + 1);
+				console.log(userLayer);
+				console.log(userURL);
+				//if (userLayer === parseInt(userLayer, 10)){
+				if (isNaN(userLayer) === false){
+					console.log("User entered layer " + userLayer);
+					var userIPs = new ImageParameters();
+		  			userIPs.layerIds = [userLayer];
+ 		  			userIPs.layerOption = ImageParameters.LAYER_OPTION_SHOW;
+ 		  			shortUserURL = userURL.substring(0,userURL.lastIndexOf("/"));
+					if (userURL.indexOf("FeatureServer") !== -1){
+						console.log("This is a featureServer");					
+						
+						// app.userMapLayer = new FeatureLayer(shortUserURL); 
+						// var userSymbol = new SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID,
+                  			// new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
+                    		// new Color([112, 112, 112]), 1), new Color([136, 136, 136, 0.5]));
+// 
+              			// app.userMapLayer.setRenderer(new SimpleRenderer(userSymbol));
+              			// console.log(app.userMapLayer);
+						// map.addLayer(app.userMapLayer);	
+						
+					}
+					else{
+						app.userMapLayer = new ArcGISDynamicMapServiceLayer(shortUserURL, {visible: true, "imageParameters": userIPs}); 
+						map.addLayer(app.userMapLayer);
+					}
+				}
+				else{
+					console.log(userURL);
+					app.userMapLayer = new ArcGISDynamicMapServiceLayer(userURL);  
+					map.addLayer(app.userMapLayer);
+				}
+			};
+
+			document.getElementById('removeMapServButton').onclick = function() { 
+				map.removeLayer(app.userMapLayer);
+				document.getElementById("userMapServ").value = "";
+			};
+
+//Endser map service functions**************************************  
+
+//Map functions**************************************
+
+              //set up handler for radio buttons
+              document.getElementById('r1_resil').checked=true;
+              document.getElementById('r1_LD').onclick = getResData;
+              document.getElementById('r1_LC').onclick = getResData;
+              document.getElementById('r1_resil').onclick = getResData;
+              document.getElementById('r1_geo').onclick = getResData;
+              document.getElementById('r1_base').onclick = getResData;
+              document.getElementById('r1_landforms').onclick = getResData;
+              document.getElementById('r1_flows').onclick = getResData;
+              document.getElementById('r1_flowsDesc').onclick = getResData;
+              document.getElementById('r1_ripCorr').onclick = getResData;
+              
+            function getResData() {
+                currentScale = map.getScale();
+				console.log('Scale: ' + currentScale);
+
+
+				if (currentScale >=4622324.434309){
+					if (basemapGallery.getSelected() == landformsBasemap){
+						console.log("landforms zoomed out");
+					}
+				}
+
+                if (document.getElementById('r1_resil').checked){
+					for (var i = 0; i < app.mapLayers.length; i++){
+                 		app.mapLayers[i].setVisibility(false);
+                 	}
+	               	if (currentScale >= 288895.277144){resTiles.setVisibility(true);}
+		            else{resGrid.setVisibility(true);} 
+	                app.legendLayer = "res";
+	                updatePrintTitle();
+	             
+                } 
+               
+               
+               else if (document.getElementById('r1_LD').checked){
+               		for (var i = 0; i < app.mapLayers.length; i++){
+                 		app.mapLayers[i].setVisibility(false);
+                 	}
+	               	if (currentScale >= 288895.277144){landDivTiles.setVisibility(true);}
+		            else{landDivGrid.setVisibility(true);} 
+	                app.legendLayer = "landDiv";
+	                updatePrintTitle();
+	           }
+
+                
+                else if (document.getElementById('r1_LC').checked){
+               		for (var i = 0; i < app.mapLayers.length; i++){
+                 		app.mapLayers[i].setVisibility(false);
+                 	}
+	               	if (currentScale >= 288895.277144){localConnTiles.setVisibility(true);}
+		            else{localConnGrid.setVisibility(true);} 
+	                app.legendLayer = "localConn";
+	                updatePrintTitle();                	
+                }
+               	 
+
+                else if (document.getElementById('r1_geo').checked){
+                	for (var i = 0; i < app.mapLayers.length; i++){
+                 		app.mapLayers[i].setVisibility(false);
+                 	}
+	               	if (currentScale >= 288895.277144){geoTiles.setVisibility(true);}
+		            else{geoGrid.setVisibility(true);} 
+	                app.legendLayer = "geo";
+	                updatePrintTitle();      
+                }
+
+                
+                else if (document.getElementById('r1_landforms').checked){
+                	for (var i = 0; i < app.mapLayers.length; i++){
+                 		app.mapLayers[i].setVisibility(false);
+                 	}
+	               	if (currentScale >= 288895.277144){landformTiles.setVisibility(true);}
+		            else{landformGrid.setVisibility(true);} 
+	                app.legendLayer = "landforms";
+	                updatePrintTitle(); 
+                }
+  
+                else if (document.getElementById('r1_flows').checked){
+                	for (var i = 0; i < app.mapLayers.length; i++){
+                 		app.mapLayers[i].setVisibility(false);
+                 	}
+	               	if (currentScale >= 288895.277144){flowsTiles.setVisibility(true);}
+		            else{flowsGrid.setVisibility(true);} 
+	                app.legendLayer = "flows";
+	                updatePrintTitle(); 
+                }
+                
+                else if (document.getElementById('r1_flowsDesc').checked){
+                	for (var i = 0; i < app.mapLayers.length; i++){
+                 		app.mapLayers[i].setVisibility(false);
+                 	}
+	               	if (currentScale >= 288895.277144){flowsDescTiles.setVisibility(true);}
+		            else{flowsDescGrid.setVisibility(true);} 
+	                app.legendLayer = "flowsDesc";
+	                updatePrintTitle(); 
+                }
+                
+                else if (document.getElementById('r1_ripCorr').checked){
+                	for (var i = 0; i < app.mapLayers.length; i++){
+                 		app.mapLayers[i].setVisibility(false);
+                 	}
+	               	if (currentScale >= 288895.277144){ripCorrTiles.setVisibility(true);}
+		            else{ripCorrGrid.setVisibility(true);} 
+	                app.legendLayer = "ripCorr";
+	                updatePrintTitle(); 
+                }
+                                                
+                else if (document.getElementById('r1_base').checked){
+                	for (var i = 0; i < app.mapLayers.length; i++){
+                 		app.mapLayers[i].setVisibility(false);
+                 	}
+                    app.legendLayer = "base";
+                    updatePrintTitle();
+                }
+
+            }
+
+            
+			var slider = document.getElementById('transp');
+			slider.oninput = function(){
+			    var val = (this.value)/100;
+			    for (var i = 0; i < app.mapLayers.length; i++){
+			     	app.mapLayers[i].setOpacity(val);
+			    };
+			    legendDijit.refresh();
+			};
+
+			slider.onchange = function(){
+			   var val = (this.value)/100;
+			   for (var i = 0; i < app.mapLayers.length; i++){
+			   		app.mapLayers[i].setOpacity(val);
+			   };
+			   legendDijit.refresh();
+			};
+
+			var toggle = new BasemapToggle({
+			        map: map,
+			        basemap: "satellite" //basemap: "terrain"
+			      }, "BasemapToggle");
+			      toggle.startup();
+			
+			var usgsTopoLayer = new BasemapLayer({url:"http://services.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer"});     
+			var worldTopoLayer = new BasemapLayer({url:"http://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer"});  
+			var imageryLayer = new BasemapLayer({url:"http://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"});     	
+	        var landformsBaselayer = new BasemapLayer({url:"http://tiles.arcgis.com/tiles/F7DSX1DSNSiWmOqh/arcgis/rest/services/TR_landformsBasemap/MapServer"});
+	        var protectedBaselayer = new BasemapLayer({url: "http://tiles.arcgis.com/tiles/F7DSX1DSNSiWmOqh/arcgis/rest/services/RL_protectedBasemap/MapServer"});
+	        
+	        var usgsTopoBasemap = new Basemap({
+    			layers:[usgsTopoLayer],
+    			title:"USGS Topo",
+    			thumbnailUrl:"assets/usgsTopoThumb.JPG"
+			});
+			
+	        var worldTopoBasemap = new Basemap({
+    			layers:[worldTopoLayer],
+    			title:"Topographic",
+    			thumbnailUrl:"assets/worldTopoThumb.JPG"
+			});
+			
+			var imageryBasemap = new Basemap({
+    			layers:[imageryLayer],
+    			title:"Imagery",
+    			thumbnailUrl:"assets/imageryThumb.JPG"
+			});			
+	        
+	        var landformsBasemap = new Basemap({
+    			layers:[landformsBaselayer],
+    			title:"Landforms",
+    			thumbnailUrl:"assets/landformsThumb.jpg"
+			});	     
+
+	        var protectedBasemap = new Basemap({
+    			layers:[protectedBaselayer],
+    			title:"Protected Lands",
+    			thumbnailUrl:"assets/protectedThumb.jpg"
+			});	    
+	        
+	        var basemapGallery = new BasemapGallery({
+        			showArcGISBasemaps: false,
+        			map: map,
+      			}, "basemapGallery");
+      			basemapGallery.add(usgsTopoBasemap);
+      			basemapGallery.add(worldTopoBasemap);
+      			basemapGallery.add(imageryBasemap);
+      			basemapGallery.add(landformsBasemap);
+      			basemapGallery.add(protectedBasemap);
+      			basemapGallery.startup();
+      
+//End Map functions**************************************
+
+
+
+
+
+//Print functions ***************************************
+			
+			document.getElementById("myPrintTitle").addEventListener("keyup", updatePrintTitle);
+			updatePrintTitle();
+			//wrap the wghole Print template functionality in the update function so that title updates on print
+			function updatePrintTitle(){
+				app.printIterator ++;	
+				if (app.printIterator > 1){
+					//if don't destroy, two instances of the Print widget can occur
+					app.printer.destroy();
+				}
+			
+				app.printTitle = document.getElementById("myPrintTitle").value;	
+
+				var legendLayer = new LegendLayer();
+				console.log("legend layer= " + app.legendLayer);
+				console.log("layerID =" + legendLayer.layerId);
+				if (app.legendLayer == "res"){legendLayer.layerId = "layer1"; var layerName = "Resilience";}
+				else if (app.legendLayer == "geo"){legendLayer.layerId = "layer2"; var layerName = "Geophysical Setting";}
+				else if (app.legendLayer == "landDiv"){legendLayer.layerId = "layer3"; var layerName = "Landscape Diversity";}
+				else if (app.legendLayer == "localConn"){legendLayer.layerId = "layer4"; var layerName = "Local Connectivity";}
+				else if (app.legendLayer == "landforms"){legendLayer.layerId = "layer5"; var layerName = "Landforms";}
+				else if (app.legendLayer == "flows"){legendLayer.layerId = "layer6"; var layerName = "Regional Flows";}
+				else if (app.legendLayer == "flowsDesc"){legendLayer.layerId = "layer7"; var layerName = "Regional Flows - Description";}
+				else if (app.legendLayer == "ripCorr"){legendLayer.layerId = "layer8"; var layerName = "Riparian Corridors";}
+				else if (app.legendLayer == "base"){legendLayer.layerId = ""; var layerName = "";}
+				legendLayer.subLayerIds = [0];
+				app.printTitle = app.printTitle + " - " + layerName;
+				
+		        app.printer = new Print({
+		          map: map,
+		          templates : [
+		          	{
+					  label: "Portrait - PDF",
+					  format: "PDF",
+					  layout: "Letter ANSI A Portrait",
+					  layoutOptions: {
+					    titleText: app.printTitle,			 
+					    copyrightText: "(c) The Nature Conservancy",
+					    scalebarUnit: "Miles", 
+					    legendLayers : [legendLayer]
+					  }, 
+					  exportOptions:{
+					  	dpi:150
+					  },
+					}, 
+					{
+					  label: "Landscape - PDF",
+					  format: "PDF",
+					  layout: "Letter ANSI A Landscape",
+					  layoutOptions: {
+					    titleText: app.printTitle,
+					    copyrightText: "(c) The Nature Conservancy",
+					    scalebarUnit: "Miles",
+					    legendLayers : [legendLayer]
+					  },  
+					  exportOptions:{
+					  	dpi:150
+					  },
+					}
+					
+					],
+		        url: "http://cumulus-web-adapter-1827610810.us-west-1.elb.amazonaws.com/arcgis/rest/services/Utilities/PrintingTools/GPServer/Export%20Web%20Map%20Task",
+          		//url: "http://50.18.215.52/arcgis/rest/services/Utilities/PrintingTools/GPServer/Export%20Web%20Map%20Task",	          	
+		        }, dom.byId("printButton"));
+		        app.printer.startup();		        
+		      }
+
+			
+//End print functions *************************
+
+
+//Sketch a parcel*******************************
+        function addParcelGraphic(parcelGraphic) {
+          //deactivate the toolbar and clear existing graphics 
+	      map.graphics.clear();
+          tb.deactivate(); 
+          map.enableMapNavigation();
+          app.sketchButton.style.background = "#666666";
+
+          map.graphics.add(new Graphic(parcelGraphic, polyParcel));
+          clickMode = "identify";
+          activateIdentify();
+          
+          var parcelFeature = [];
+          parcelFeature.push(parcelGraphic);
+          var featureSetParcel = new FeatureSet();
+          featureSetParcel.fields=[
+		        {
+		            "name": "OBJECTID",
+		            "type": "esriFieldTypeOID",
+		            "alias": "OBJECTID"
+		        },
+		        {
+		            "name": "Shape_Length",
+		            "type": "esriFieldTypeDouble",
+		            "alias": "Shape_Length"
+		        },
+		        {
+		            "name": "Shape_Area",
+		            "type": "esriFieldTypeDouble",
+		            "alias": "Shape_Area"
+		        }
+		    ];
+		  featureSetParcel.displayFieldName = "";
+		  featureSetParcel.geometryType = "esriGeometryPolygon";
+          featureSetParcel.features = parcelFeature; 
+          featureSetParcel.features.attributes ={"OBJECTID": 1,
+                "Shape_Length": 9999,
+                "Shape_Area": 9999};
+
+ 		  var parcelJSON = JSON.stringify(featureSetParcel);
+          parcelJSON = parcelJSON.replace('\"type\":\"polygon\",' , "\"attributes\":{\"OBJECTID\":1,\"Shape_Length\":9999,\"Shape_Area\":9999},\"geometry\":{");
+          parcelJSON = parcelJSON.replace("],\"_ring\":0", "]},\"_ring\":0");
+          console.log(parcelJSON);
+ 		  var fsInParams = {"Parcel_as_FeatureSet" : parcelJSON};
+          app.gpFS.submitJob(fsInParams, completeFSCallback, statusCallback, function(error){         
+                    alert(error); 
+         });       
+        }
+//End sketch a Parcel*********************
+
+//Identify task functions*************************************
+             function activateIdentify(){
+				if (clickMode != "draw"){
+					identifyListener = dojo.connect(map, "onClick", executeIdentifyTask);
+				}
+				else{
+					dojo.disconnect(identifyListener);
+				}
+			 }              
+              
+             function executeIdentifyTask (event) {
+              	console.log(clickMode);              
+               
+                if (clickMode != "draw"){
+					//this is all set up for raster identify
+	                identifyParams.geometry = event.mapPoint;
+	                identifyParams.mapExtent = map.extent;
+	                
+	                //set the  layer being identified to correspond to the selected layer
+	                if (document.getElementById('r1_resil').checked){ 
+	                  identifyParams.layerIds = [0];
+	                 }
+	                else if (document.getElementById('r1_LD').checked){ 
+	                  identifyParams.layerIds = [1];
+	                 }
+	                else if (document.getElementById('r1_LC').checked){ 
+	                  identifyParams.layerIds = [2];
+	                 }
+	                else if (document.getElementById('r1_geo').checked){ 
+	                  identifyParams.layerIds = [3];
+	                 }
+	                else if (document.getElementById('r1_landforms').checked){ 
+	                  identifyParams.layerIds = [4];
+	                 }
+	                 
+	                else if (document.getElementById('r1_flows').checked){ 
+	                  identifyParams.layerIds = [5];
+	                 }
+	                 
+	                else if (document.getElementById('r1_flowsDesc').checked){ 
+	                  identifyParams.layerIds = [6];
+	                 }
+
+	                else if (document.getElementById('r1_ripCorr').checked){ 
+	                  identifyParams.layerIds = [7];
+	                 }
+	                 var deferred = identifyRes	      
+	                    .execute(identifyParams)
+	                    .addCallback(function (response) {
+	                      return arrayUtils.map(response, function (idResult) {
+	                        var feature = idResult.feature;
+	                        console.log(idResult);
+	                        var pixelVal = feature.attributes['Pixel Value'];                   
+	                        console.log(feature.attributes['Pixel Value']);
+	                        
+	                        if (document.getElementById('r1_geo').checked){
+	                        	pixelDesc =feature.attributes['SET_NAME_L'];
+	                        	pixelJPEG = feature.attributes['SET_NAME_L'].toUpperCase();
+	                        	pixelJPEG = pixelJPEG.replace(/ /g, "_");
+	                        	pixelJPEG = pixelJPEG.replace(/:/g, "_");
+	                        	pixelJPEG = pixelJPEG.replace("/", "_");
+	                        	pixelElev =feature.attributes['ELV_TXT'];
+	                        	pixelGeo =feature.attributes['D_SOILGEO'];
+	                        	var geoPic = '<table align="center"><tr align="center"><td align="center"><img src="assets/' + pixelJPEG + '.JPG" alt="' + pixelDesc + '" width="300" height="200"></td></tr></table>';			  
+	                        	var geoTemplate = new InfoTemplate("Geophysical Setting", "<tr>This location is in the <b>" + pixelElev + "</b> elevation zone and the geology is <b>" + pixelGeo + "</b> (pictured).</tr>" + geoPic);
+	                         	feature.setInfoTemplate(geoTemplate);
+	                         }
+	                         else if(document.getElementById('r1_landforms').checked){
+	                        	pixelDesc =feature.attributes['LF30_DESC'];
+	                        	console.log("yo!");
+	                        	var lfTemplate = new InfoTemplate("Landforms", "<tr>This location is on the <b>" + pixelDesc + "</b> landform.</tr>");
+	                         	feature.setInfoTemplate(lfTemplate);
+	                         }
+	                         
+	                         else if(document.getElementById('r1_flows').checked){
+	                         	if (pixelVal < -2000){var pixelCat = "Low Current Flow";}
+	                         	else if (pixelVal >= -2000 && pixelVal <-1000)  {var pixelCat = "Low-Average Current Flow";}
+		                        else if (pixelVal >= -1000 && pixelVal <-500)  {var pixelCat = "Average-Low Current Flow";}
+		                        else if (pixelVal >= -500 && pixelVal <500)  {var pixelCat = "Average Current Flow";}
+		                        else if (pixelVal >= 500 && pixelVal <1000)  {var pixelCat = "Average-High Current Flow";}
+		                        else if (pixelVal >= 1000 && pixelVal <2000)  {var pixelCat = "High-Average Current Flow";}
+		                        else if (pixelVal >= 2000)  {var pixelCat = "High Current Flow";}
+	                				                                
+	                        	var flowsTemplate = new InfoTemplate("Regional Flows", "<tr><strong>Regional Flows</strong>: High current flow indicates areas of concentrated flow where movements will accumulate or be channeled through a pinch point (Blue). Average current flow indicates areas of moderate flow; often highly natural settings were species movements are diffuse (Yellow).  Low current flow  indicates areas with low permeability where movement may be blocked (brown). This location has <b>" + pixelCat + "</b>.</tr>");
+	                         	feature.setInfoTemplate(flowsTemplate);
+	                         }
+	                         
+	                         else if(document.getElementById('r1_flowsDesc').checked){
+	                			pixelDesc =feature.attributes['DESC'];                 
+	                        	var flowsDescTemplate = new InfoTemplate("Regional Flow Descriptions", "<tr><strong>Regional Flow Descriptions</strong>: Diffuse areas are largely natural areas that have high flow and flow amounts similar to their neighbors over a large area.  Concentrated flows are regional areas where the range shifts of many species will likely converge. These area areas where land movements become concentrated due to roads and development patterns, or intact natural area, and have higher flows than their neighbors. This location has <b>" + pixelDesc + "</b>.</tr>");
+	                         	feature.setInfoTemplate(flowsDescTemplate);
+	                         }
+	                         
+	                         else if(document.getElementById('r1_ripCorr').checked){
+	                         	
+	                			pixelDesc =feature.attributes['Description'];             
+	                        	var ripCorrTemplate = new InfoTemplate("Riparian Corridors", "<tr><strong>Riparian Climate Corridors</strong>: Riparian areas are the floodplains and zones along water bodies that serve as interfaces between terrestrial and aquatic ecosystems.  With respect to climate change, riparian areas feature micro-climate refugia that are significantly cooler and more humid than immediately surrounding areas.  Our objective was to identify intact riparian floodplain areas that serve as natural corridors to facilitate movement of plants and wildlife linearly, taking advantage of the cooler moister environment within these areas. This location is a <b>" + pixelDesc + "</b>.</tr>");
+	                         	feature.setInfoTemplate(ripCorrTemplate);
+	                         }
+	                         
+	                        else { 
+		                        if (pixelVal >= -3500 && pixelVal <-2000){var pixelCat = "Far Below Average";}
+		                        else if (pixelVal >= -2000 && pixelVal <-1000)  {var pixelCat = "Below Average";}
+		                        else if (pixelVal >= -1000 && pixelVal <-500)  {var pixelCat = "Slightly Below Average";}
+		                        else if (pixelVal >= -500 && pixelVal <500)  {var pixelCat = "Average";}
+		                        else if (pixelVal >= 500 && pixelVal <1000)  {var pixelCat = "Slightly Above Average";}
+		                        else if (pixelVal >= 1000 && pixelVal <2000)  {var pixelCat = "Above Average";}
+		                        else if (pixelVal >= 2000)  {var pixelCat = "Far Above Average";}
+		                        else if (pixelVal == -3501) {var pixelCat ="Developed Lands";}
+	                			
+	                			if (pixelVal != -3501){	 //not developed                       
+			                        var pixelValLink = "(" + Math.round((pixelVal/1000)*100)/100 + " <a href='sd.html' onClick='return windowPopup(this, \"SDnotes\")'>SD</a>)";
+			                        var resTemplate = new InfoTemplate("Resilience", "<b>" + pixelCat + " Resilience " +pixelValLink + "</b>" + "<br><br><tr><strong>Site Resilience</strong>: estimates a site’s climate-resilience based on its landscape diversity and local connectedness. Each site is scored relative to all other sites with the same geology and elevation zone within a given ecoregion, which we call its “geophysical setting”. Relative to all sites within the same ecoregion and geophysical setting, this one has <strong>" + pixelCat + "</strong> resilience for its geologic setting.</tr>");
+			                        var LDTemplate = new InfoTemplate("Landscape Diversity", "<b>" + pixelCat + " Landscape Diversity " +pixelValLink + "</b>" + "<br><br><tr><strong>Landscape Diversity</strong>: estimates the number of microclimates present at a site based on its topographic diversity, density of wetlands, and elevation range. Microclimates buffer the site from the effects of climate change because they provide plants and animals with many temperature and moisture options in their local neighborhood, such as a shady moist ravine, a wet basin, or a hot dry slope. Relative to other sites within the same ecoregion and geophysical setting, this site has <strong>" + pixelCat + "</strong> landscape diversity.</tr>");
+			                        var LCTemplate = new InfoTemplate("Local Connectedness", "<b>" + pixelCat + " Local Connectedness " +pixelValLink + "</b>" + "<br><br><tr><strong>Local Connectedness</strong>:  measures the number of barriers and the degree of fragmentation within a landscape. A highly connected landscape promotes resilience by allowing plants and animals to move around the landscape and find suitable microclimates where they can persist. Relative to other sites within the same ecoregion and geophysical setting, this site has <strong>" + pixelCat + "</strong> local connectedness.</tr>");
+		                       }
+		                       
+		                       else if (pixelVal == -3501){	 // developed 
+		                       		
+			                        var resTemplate = new InfoTemplate("Resilience", "<tr><strong>Developed Lands</strong>: Low, Medium, High Density Developed Lands and Roads were not included in the analysis.");
+			                        var LDTemplate = new InfoTemplate("Landscape Diversity", "<tr><strong>Developed Lands</strong>: Low, Medium, High Density Developed Lands and Roads were not included in the analysis.");
+			                        var LCTemplate = new InfoTemplate("Local Connectedness", "<tr><strong>Developed Lands</strong>: Low, Medium, High Density Developed Lands and Roads were not included in the analysis.");
+		                       }
+		                       
+		                       
+		                       if (document.getElementById('r1_resil').checked){feature.setInfoTemplate(resTemplate);}
+		                       else if (document.getElementById('r1_LD').checked){feature.setInfoTemplate(LDTemplate);}
+		                       else if (document.getElementById('r1_LC').checked){feature.setInfoTemplate(LCTemplate);}
+	                        }
+	                      return feature;
+	                      });
+	                    });
+	                  map.infoWindow.setFeatures([deferred]);
+	                  map.infoWindow.show(event.mapPoint);
+	                 
+	                }
+               }
+              
+
+//End Identify task functions*************************************
+
+
+//Geolocation functions******************************
+			if (app.useGeolocate == true){
+	            function orientationChanged() {
+	              if(map){
+	                map.reposition();
+	                map.resize();
+	              }
+	            }
+	
+	            function locationError(error) {
+	              //error occurred so stop watchPosition
+	              if( navigator.geolocation ) {
+	                navigator.geolocation.clearWatch(watchId);
+	              }
+	              switch (error.code) {
+	                case error.PERMISSION_DENIED:
+	                  alert("Location not provided");
+	                  break;
+	    
+	                case error.POSITION_UNAVAILABLE:
+	                  alert("Current location not available");
+	                  break;
+	    
+	                case error.TIMEOUT:
+	                  alert("Timeout");
+	                  break;
+	    
+	                default:
+	                  alert("unknown error");
+	                  break;
+	              }
+	            }
+	    
+	            function zoomToLocation(location) {
+	              var pt = new Point(location.coords.longitude, location.coords.latitude);
+	              addGraphic(pt);
+	              map.centerAndZoom(pt, 12);
+	            }
+	    
+	            function showLocation(location) {
+	              //zoom to the users location and add a graphic
+	              var pt = new Point(location.coords.longitude, location.coords.latitude);
+	              if ( !graphic ) {
+	                addGraphic(pt);
+	              } else { // move the graphic if it already exists
+	                graphic.setGeometry(pt);
+	              }
+	              map.centerAt(pt);
+	            }
+	            
+	            function addGraphic(pt){
+	              var symbol = new SimpleMarkerSymbol(
+	                SimpleMarkerSymbol.STYLE_CIRCLE, 
+	                12, 
+	                new SimpleLineSymbol(
+	                  SimpleLineSymbol.STYLE_SOLID,
+	                  new Color([210, 105, 30, 0.5]), 
+	                  8
+	                ), 
+	                new Color([210, 105, 30, 0.9])
+	              );
+	              graphic = new Graphic(pt, symbol);
+	              map.graphics.add(graphic);
+	            }
+	        }
+//End Geolocation functions**************************
+
+
+//GP service functions*******************************        
+           function uploadFile() { 
+           		console.log("uploading file!");
+                var requestHandle = esri.request({
+                    url: app.gpUploadURL,
+                    form: dojo.byId("uploadForm"),
+                            content : {
+                                f : "json"
+                            },
+                    load: uploadSucceeded,
+                    
+                }); 
+            }
+            
+            function uploadSucceeded(response) {
+                console.log(response);
+                var itemID = response.item.itemID;   
+                console.log(itemID);
+                //submit the GP Task by passing the itemID info the input parameter
+                var params = {'Parcel_as_Zipped_Shapefile': "{'itemID':" + itemID + "}", 'Polygon_ID':"Name"};
+                console.log(params);
+                app.gp.submitJob(params, completeCallback, statusCallback, function(error){         
+                    alert(error);        
+                });
+            }      
+
+            function completeCallback(jobInfo){
+                if(jobInfo.jobStatus !== "esriJobFailed"){
+                    console.log("getting data");
+                    app.gp.getResultData(jobInfo.jobId, "Result", displayResult);
+                    statusCallbackIterator = 0;
+                }
+            }      
+
+
+            function completeFSCallback(jobInfo){
+                if(jobInfo.jobStatus !== "esriJobFailed"){
+                    console.log("getting data");
+                    app.gpFS.getResultData(jobInfo.jobId, "Result", displayResult);
+                    statusCallbackIterator = 0;
+                }
+            }
+
+            function displayResult(result, messages){
+            	//show button that reopens results
+            	var showResultButtonDiv = document.getElementById('reopenRes');
+            	showResultButtonDiv.style.display='block';
+				document.getElementById('gpResults').style.display = "block";
+                var gpResultDiv = dom.byId('gpResults');
+                gpResultDiv.innerHTML = "";       
+                       
+                var disp = "";
+                var alertDisp = "";  
+                var feats = result.value.features;
+                var grResCat;
+                var grResVal;
+                var grLDCat;
+                var grLDVal;
+                var grLCCat;
+                var grLCVal;
+                var constrFlow ="";
+                var concenFlow ="";
+                var highConcenFlow ="";
+                var lowDiffFlow ="";
+                var medDiffFlow ="";
+                var highDiffFlow ="";
+                var flowTextVals = {};
+                var ripCorrTextVals = {};
+                var aboveBelow;
+                var geoDict = {};
+                var i = 0;
+                for (var feat in feats){
+                    //get each of the results
+                    var br = document.createElement("br");
+                    var val = result.value.features[feat].attributes.ResultValue;
+                    var metric = result.value.features[feat].attributes.Metric;
+                    var unit = result.value.features[feat].attributes.Unit;
+                    
+
+                	
+                	//*********Text format for Dojo Dialog************************
+
+                	if (metric === "Landscape Diversity"){
+                		grLDVal = Math.round((Number(val)+0.00001)*100)/100;
+                		grLDCat = binScores(grLDVal);
+                	
+                	}
+                	else if (metric === "Local Connectedness"){
+                		grLCVal = Math.round((Number(val)+0.00001)*100)/100;
+                		grLCCat = binScores(grLCVal);
+                		console.log(grLCVal +" " + grLCCat);
+                	}                	
+                	else if (metric === "Terrestrial Resilience"){
+                		grResVal = Math.round((Number(val)+0.00001)*100)/100;
+                		grResCat = binScores(grResVal);
+                	/*	if (grResVal >0){aboveBelow = "above";}
+                		else{aboveBelow = "below";}           			
+            			if (grResVal < -2000){var grResCat = "Far Below Average";}
+                        else if (grResVal >= -2000 && grResVal <-1000)  {var grResCat = "Below Average";}
+                        else if (grResVal >= -1000 && grResVal <-500)  {var grResCat = "Slightly Below Average";}
+                        else if (grResVal >= -500 && grResVal <500)  {var grResCat = "Average";}
+                        else if (grResVal >= 500 && grResVal <1000)  {var grResCat = "Slightly Above Average";}
+                        else if (grResVal >= 1000 && grResVal <2000)  {var grResCat = "Above Average";}
+                        else if (grResVal >= 2000)  {var grResCat = "Far Above Average";} 
+                    */
+                		
+                	}
+                	
+                	else if (metric == "CONSTRAINED_FLOW"){flowTextVals["Constrained Flow"] = Math.max(Math.round(Number((val/1000000)) * 10) / 10);}
+                	else if (metric == "CONCENTRATED_FLOW"){flowTextVals["Concentrated Flow"] = Math.max(Math.round(Number((val/1000000)) * 10) / 10);}
+                	else if (metric == "HIGH_CONCENTRATED_FLOW"){flowTextVals["High Concentrated Flow"] = Math.max(Math.round(Number((val/1000000)) * 10) / 10);}
+                	else if (metric == "LOW_DIFFUSE_FLOW"){flowTextVals["Low Diffuse Flow"] = Math.max(Math.round(Number((val/1000000)) * 10) / 10);}
+                	else if (metric == "MEDIUM_DIFFUSE_FLOW"){flowTextVals["Medium Diffuse Flow"] = Math.max(Math.round(Number((val/1000000)) * 10) / 10);}
+                	else if (metric == "HIGH_DIFFUSE_FLOW"){flowTextVals["High Diffuse Flow"] = Math.max(Math.round(Number((val/1000000)) * 10) / 10);}
+                	else if (metric == "HIGH_FLOW_RIPARIAN_CORRIDORS__LARGELY_WITHIN_RESILIENT_LAND"){ripCorrTextVals["High Flow Riparian Corridors, Largely Within Resilient Land"] = Math.max(Math.round(Number((val/1000000)) * 10) / 10);}
+                	else if (metric == "HIGH_FLOW_RIPARIAN_CORRIDORS__LARGELY_OUTSIDE_RESILIENT_LAND"){ripCorrTextVals["High Flow Riparian Corridors, Largely Outside Resilient Land"] = Math.max(Math.round(Number((val/1000000)) * 10) / 10);}
+                	else if (metric.match("FLOW") != "FLOW"){
+                		geoDict[metric] = val; 	
+                	}
+                	
+                	//************************************************************
+                	
+                }
+              //get the geology area for each type and calulate the total area
+              var totalArea = 0;
+        	  for (var key in geoDict) {
+    			 totalArea += Number(geoDict[key]);
+			  }
+			  
+			  var totalAcres = numberWithCommas(Math.round(totalArea * 0.000247105));
+			  var geoText = "";			  
+			  var valList = [];
+			  var pieData = [];
+			  
+			  //calculate the % area and add it to the geology dictionary
+              for (var key in geoDict) {
+              	
+              	var rawVal = Math.round(Number(geoDict[key])* 0.000247105);
+              	var tmp = {};
+              	var keyText = app.geoNameDict[key];
+              	var keyElev = app.geoElevDict[key];
+              	var keyGeol = app.geoGeoDict[key];
+              	var geoPhoto = '<table align="center"><tr align="center"><td align="center"><img src="assets/' + key + '.JPG" alt="' + keyText + '" width="300" height="200"></td></tr></table>';			  
+              	var percent = Number(geoDict[key]) / totalArea * 100;
+				percent = Math.round((percent+0.00001)*100)/100;
+				geoDict[key] = percent;
+			    valList.push(percent);
+			    var text = keyText + " : <strong>" + geoDict[key] + "%</strong><br />";			    
+    			geoText += text;	
+    			
+    			tmp.y = rawVal;
+              	//tmp.text below creates labels with geo type and % -- looks horrible
+              	tmp.text = '<div align="center">' + keyText + '<br>' + percent +'%</div>';     
+              	tmp.tooltip = geoPhoto + "\n" + "Elevation:<strong>" + keyElev + "</strong> &nbsp;&nbsp;Geology:<strong>" + keyGeol + "</strong><br>" + numberWithCommas(rawVal) + " acres";
+              	pieData.push(tmp);						 		
+			  }
+			
+
+			  //Format text for Dialog
+			  var geoTextIntro = string.substitute("<p>Result values are averages, stratified by geologic setting and ecoregion, for the user-supplied polygon.  The polygon has a total area of <strong>${totalArea} acres</strong> and is composed of the following geologic settings (hover over each pie slice to see the geophysical setting):<p>",{totalArea:totalAcres});
+        	  var resText = string.substitute('<h4><a href=\'coreConcepts.html\' onClick=\'return windowPopup(this, \"notes\")\'>Resilience</a>: ${resultCat} (${resultVal} <a href=\'sd.html\' onClick=\'return windowPopup(this, \"SDnotes\")\'>SD</a>)</h4><p></p>',{resultCat:grResCat, resultVal:grResVal});
+        	  var LDText = string.substitute('<h4><a href=\'coreConcepts.html\' onClick=\'return windowPopup(this, \"notes\")\'>Landscape Diversity</a>: ${resultCat} (${resultVal} <a href=\'sd.html\' onClick=\'return windowPopup(this, \"SDnotes\")\'>SD</a>)</h4><p></p>',{resultCat:grLDCat, resultVal:grLDVal});
+        	  var LCText = string.substitute('<h4><a href=\'coreConcepts.html\' onClick=\'return windowPopup(this, \"notes\")\'>Local Connectedness</a>: ${resultCat} (${resultVal} <a href=\'sd.html\' onClick=\'return windowPopup(this, \"SDnotes\")\'>SD</a>)</h4><p></p>',{resultCat:grLCCat, resultVal:grLCVal});
+
+			  //loop through flow results and only include text if there's a result value
+			  var flowText = "";
+			  for (var key in flowTextVals){
+			  	if (flowTextVals[key] != ""){
+			  		flowText += string.substitute('<h4><a href=\'coreConcepts.html\' onClick=\'return windowPopup(this, \"notes\")\'>${resultMetric}</a>: ${resultVal} Sq KM</h4><p></p>',{resultMetric: key, resultVal:flowTextVals[key]});
+			  	}
+			  }
+			  if (flowText==""){flowText = "<p>There are no categorized Regaional Flows data within the polygon.</p>";}
+				
+			  //loop through flow results and only include text if there's a result value
+			  var ripCorrText = "";
+			  for (var key in ripCorrTextVals){
+			  	if (ripCorrTextVals[key] != ""){
+			  		ripCorrText += string.substitute('<h4><a href=\'coreConcepts.html\' onClick=\'return windowPopup(this, \"notes\")\'>${resultMetric}</a>: ${resultVal} Sq KM</h4><p></p>',{resultMetric: key, resultVal:ripCorrTextVals[key]});
+			  	}
+			  }
+			  if (ripCorrText == ""){ripCorrText = "<p>There are no Riparian Climate Corridors within the polygon.</p>";}
+			  				
+        	  var image = '<table align="center"><tr align="center"><td align="center"><img src="assets/logo.jpg" alt="TheNatureConservancy" height="50"></td></tr></table>';			  
+			  var chartDiv = '<div align="center"><div id="chartNode" align="left" style="width: 300px; height: 300px;"></div></div>';
+        	  var okPrintButtons = "<table align=\"center\">" +"<tr align=\"center\">" +"<td align=\"center\" colspan=\"2\">" +"<button data-dojo-type=\"dijit.form.Button\" type=\"button\"" +"data-dojo-props=\"onClick:function(){dijit.byId('resultDialog').hide();}\">OK</button><button data-dojo-type=\"dijit.form.Button\" type=\"button\"" +"data-dojo-props=\"onClick:function(){window.print();}\">Print</button></td></tr></table>" ;
+      	  
+        	  geoText = geoText.replace(/_/g, " ");
+        	  var content =  "<h4>Resilience Results</h4>" + resText + LDText + LCText + "<hr><h4>Regional Connector Results</h4>" + flowText + ripCorrText + "<hr>" + geoTextIntro  + chartDiv + okPrintButtons;
+
+        	  resultDialog.set("content", content);
+        	  resultDialog.style.top;
+        	  gpStartDialog.hide();
+        	  resultDialog.show();
+        	  resultDialog._setStyleAttr('top:' + 5 + 'px !important;'); 
+     
+
+              
+        	  //set up the pie chart *****Set label offset to 0 if incluing geo text in label
+			  var pieChart = new Chart("chartNode");
+			  pieChart.setTheme(theme);
+			  pieChart.addPlot("default", {
+	              type: "Pie",
+	              fontColor: "black",
+	              labelOffset: 0,	            
+/*		              
+	              styleFunc: function(item){
+	              	console.log(item);
+	              	if(item.tooltip.match(/Low Elevation Coarse Sand/g) == 1){return{fill:"red"};}	              	
+	                else{return{fill:"green"};}
+	              	return {};              
+	              },
+*/	              
+	          });
+        	  
+        	  pieChart.addSeries("Geologic Settings",pieData);
+        	  
+        	  new Tooltip(pieChart, "default", {
+        	  	position : "before",
+        	  });
+        	  new MoveSlice(pieChart,"default");
+        	  pieChart.render();
+
+            }
+
+            function statusCallback(jobInfo) {
+            	console.log("Status Callback!");
+            	statusCallbackIterator += 1;
+                var gpResultDiv = dom.byId('gpResults');
+                gpResultDiv.innerHTML = "";    
+                var status = jobInfo.jobStatus;
+                if(status === "esriJobFailed"){
+                alert("There was a problem running the analysis.  Please try again. " + status);
+                }
+                else {
+                	//if(statusCallbackIterator === 1){alert("Your analysis has begun.  It will take approximately 30 seconds to run.  You may continue to use the map in the meantime. Thanks for your patience.");}
+                    if(statusCallbackIterator === 1){gpStartDialog.show();}
+                    var messages = jobInfo.messages;
+                    var count = messages.length;
+                    var index = count-1;
+                    if (count>0) {
+                        var message = messages[index].description;
+                    }
+                    if ((message != updateMessage) && (typeof message != 'undefined'))
+                    {
+                        var gpUpdateDiv = dom.byId('gpUpdateStatus');
+						gpUpdateDiv.style.display = "block";
+                        gpUpdateDiv.innerHTML = message;
+                        updateMessage = message;
+                    }
+                }
+            }
+          
+            function gpJobFailed(error){
+            	console.log("Error!!");
+            	statusCallbackIterator = 0;
+                dom.byId('status').innerHTML = error;
+                domUtils.hide(dom.byId('status'));
+            }     
+//End GP service functions*******************************    
+
+
+//Shapefile display / Portal functions********************
+          			
+          on(dom.byId("uploadForm"), "change", function (event) {
+            var fileName = event.target.value.toLowerCase();
+            if (sniff("ie")) { //filename is full path in IE so extract the file name
+              var arr = fileName.split("\\");
+              fileName = arr[arr.length - 1];
+            }
+            if (fileName.indexOf(".zip") !== -1) {//is file a zip - if not notify user
+              generateFeatureCollection(fileName);
+            }
+            else {
+              alert("Add shapefile as a .zip file");
+              //dom.byId('upload-status').innerHTML = '<p style="color:red">Add shapefile as .zip file</p>';
+            }
+          });
+			
+          
+          function generateFeatureCollection (fileName) {
+            uploadFile();
+            var name = fileName.split(".");
+            //Chrome and IE add c:\fakepath to the value - we need to remove it
+            //See this link for more info: http://davidwalsh.name/fakepath
+            name = name[0].replace("c:\\fakepath\\", "");
+
+            //dom.byId('upload-status').innerHTML = '<b>Loading… </b>' + name;
+
+            //Define the input params for generate see the rest doc for details
+            //http://www.arcgis.com/apidocs/rest/index.html?generate.html
+            var params = {
+              'name': name,
+              'targetSR': map.spatialReference,
+              'maxRecordCount': 1000,
+              'enforceInputFileSizeLimit': true,
+              'enforceOutputJsonSizeLimit': true
+            };
+
+            //generalize features for display Here we generalize at 1:40,000 which is approx 10 meters
+            //This should work well when using web mercator.
+            var extent = scaleUtils.getExtentForScale(map, 40000);
+            var resolution = extent.getWidth() / map.width;
+            params.generalize = true;
+            params.maxAllowableOffset = resolution;
+            params.reducePrecision = true;
+            params.numberOfDigitsAfterDecimal = 0;
+
+            var myContent = {
+              'filetype': 'shapefile',
+              'publishParameters': JSON.stringify(params),
+              'f': 'json',
+              'callback.html': 'textarea'
+            };
+
+            //use the rest generate operation to generate a feature collection from the zipped shapefile
+            request({
+              url: portalUrl + '/sharing/rest/content/features/generate',
+              content: myContent,
+              form: dom.byId('uploadForm'),
+              handleAs: 'json',
+              load: lang.hitch(this, function (response) {
+                if (response.error) {
+                  errorHandler(response.error);
+                  return;
+                }
+                var layerName = response.featureCollection.layers[0].layerDefinition.name;
+                //dom.byId('upload-status').innerHTML = '<b>Loaded: </b>' + layerName;
+                addShapefileToMap(response.featureCollection);
+              }),
+              error: lang.hitch(this, errorHandler)
+            });
+          }
+
+          function errorHandler (error) {
+            dom.byId('upload-status').innerHTML =
+            "<p style='color:red'>" + error.message + "</p>";
+          }
+
+          function addShapefileToMap (featureCollection) {
+            //add the shapefile to the map and zoom to the feature collection extent
+            //If you want to persist the feature collection when you reload browser you could store the collection in
+            //local storage by serializing the layer using featureLayer.toJson()  see the 'Feature Collection in Local Storage' sample
+            //for an example of how to work with local storage.
+            var fullExtent;
+            var layers = [];
+
+            arrayUtils.forEach(featureCollection.layers, function (layer) {
+              var infoTemplate = new InfoTemplate("Details", "${*}");
+              var featureLayer = new FeatureLayer(layer, {
+                infoTemplate: infoTemplate
+              });
+              //associate the feature with the popup on click to enable highlight and zoom to
+              featureLayer.on('click', function (event) {
+                map.infoWindow.setFeatures([event.graphic]);
+              });
+              //change default symbol if desired. Comment this out and the layer will draw with the default symbology
+              changeRenderer(featureLayer);
+              fullExtent = fullExtent ?
+                fullExtent.union(featureLayer.fullExtent) : featureLayer.fullExtent;
+              layers.push(featureLayer);
+              shape= featureLayer;
+            });
+       
+               map.addLayer(shape);
+            //map.addLayers(layers);
+            map.setExtent(fullExtent.expand(1.25), true);
+            dom.byId('upload-status').innerHTML = "";
+          }
+
+          function changeRenderer (layer) {
+            //change the default symbol for the feature collection for polygons and points
+            var symbol = null;
+            switch (layer.geometryType) {
+              case 'esriGeometryPoint':
+                symbol = new PictureMarkerSymbol({
+                  'angle': 0,
+                  'xoffset': 0,
+                  'yoffset': 0,
+                  'type': 'esriPMS',
+                  'url': 'http://static.arcgis.com/images/Symbols/Shapes/BluePin1LargeB.png',
+                  'contentType': 'image/png',
+                  'width': 20,
+                  'height': 20
+                });
+                break;
+              case 'esriGeometryPolygon':
+                symbol = new SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID,
+                  new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
+                    new Color([112, 112, 112]), 1), new Color([136, 136, 136, 0.5]));
+                break;
+            }
+            if (symbol) {
+              layer.setRenderer(new SimpleRenderer(symbol));
+            }
+          }
+//End shapefile display / Portal functions********************
+        
+        });
+       
+        });
+
+        
+    </script>
+  </head>
+  
+  <body class="tundra" >
+    <div id="mainWindow" data-dojo-type="dijit/layout/BorderContainer" data-dojo-props="design:'headline',gutters:false" style="width:100%; height:100%;">
+      <div data-dojo-type="dijit/layout/ContentPane" id="headerPane" data-dojo-props="region:'top'">
+      <a href="http://www.nature.org" target="_blank"><img src="assets/logo.jpg" alt="The Nature Conservancy" height="50" title="Visit The Nature Conservancy's website."></a>
+      	<h1 class="header-title">Resilient Land Mapping Tool</h1>
+      	<h2 class="infoLink">Learn more about the TNC resilient land project and download data <a href="https://www.conservationgateway.org/ConservationByGeography/NorthAmerica/UnitedStates/edc/reportsdata/terrestrial/resilience/Pages/default.aspx" target="blank">here</a></h2>
+      	
+      	<h2 class="infoLink">Get a quick primer on the  <a href="coreConcepts.html" target="blank">Core Concepts</a></h2>
+      </div>
+      
+      
+      
+      
+      <div data-dojo-type="dijit/layout/ContentPane" id="rightPane" data-dojo-props="region:'right'">
+ 		<div id="printDiv">
+	      	<div id = "printTitleInputHolder"><input id="myPrintTitle" placeholder="Enter a printout title" type="text" /></div>
+	      	<div id="printButton"></div>
+      
+      </div>
+      	
+    
+      	<div class="upload-area" >
+      	  <h2>Analyze</h2>
+          <p>Get resilience statistics for a parcel or other polygon.</p>	
+              <form enctype="multipart/form-data" method="post" id="uploadForm" >
+              <div class="field" title="Click to upload a zipped shapefile.  Be sure to include all parts of he shapefile">
+                  <label class="file-upload" >
+                      <span >Upload <b>Zipped</b> SHP</span>
+                      <input type="file" name="file" id="inFile" />
+                  </label>
+              </div>
+              </form>              
+              <p>OR</p>
+              <div id="info" title="Click to draw a polygon on the map.">
+              	<button class = "file-upload" id="Polygon">Sketch a Polygon</button>
+             </div>
+             <div id="reopenRes" title="Reopen the most recent results" style="display: none;">            	
+              	<button id="reopenResButton" class="file-upload" onClick="showResultDialog()">Open Last Results</button>
+             </div>
+          <span class="gp-update-status" style="opacity:1; display:none" id="gpUpdateStatus" ></span>
+          <div id="gpInfo" >&nbsp;</div>
+          <span class="gp-results" style="opacity:1; display:none" id="gpResults" title="Results from the previous analysis run are displayed here."></span>
+          <div id="gpResInfo" >&nbsp;</div>
+        </div>
+       
+    
+       
+        <div class="map-service-options">
+            <form name="resDataForm" class = "resDataForm" title="Select the layer for display.">    
+            		<h2 style="text-align: center">Visualize</h2>
+            		<h3>Resilience Data</h3>
+                    <Input type="radio" Name="r1" Value="resil" id = "r1_resil" >Resilience
+                    <br>
+                    <Input type="radio" Name="r1" Value="landDiv" id = "r1_LD" >Landscape Diversity
+                    <br>
+                    <Input type="radio" Name="r1" Value="localConn" id = "r1_LC" >Local Connectedness
+                    <br>
+                    <Input type="radio" Name="r1" Value="geo" id = "r1_geo" >Geophysical Setting
+                    <br>
+                    <Input type="radio" Name="r1" Value="landform" id = "r1_landforms" >Landforms
+      
+                    <hr>
+					<h3>Regional Connections</h3>
+                    <Input type="radio" Name="r1" Value="flows" id = "r1_flows" >Regional Flows
+                    <br>
+                    <Input type="radio" Name="r1" Value="flowsDesc" id = "r1_flowsDesc" >Regional Flows - Description
+                    <br>
+                    <Input type="radio" Name="r1" Value="ripCorr" id = "r1_ripCorr" >Riparian Climate Corridors
+                    <hr>
+                    <Input type="radio" Name="r1" Value="base" id = "r1_base" >Basemap Only         
+                    <hr>  
+                       
+            </form >  
+            <label>Set Transparency</label>
+            <input type="range" id ="transp" name="transp" class="slider" min="0" max="100" value = "100" title="Slide to set the transparency of all layers." />                                                       
+        	<hr >
+        	<div id="userMapServDiv">
+	        	<div id = "userMapServiceHolder"><input id="userMapServ" style="width:260px; margin-bottom: 3px" placeholder="Enter a URL for an ArcGIS Map Service" type="text" /></div>
+	        	<button id="addMapServButton" >Add Map Service</button>
+	        	<button id="removeMapServButton" >Remove Map Service</button>
+	        </div>	
+        </div>
+        <div id="legendDiv" class="legend-div"></div> 
+      
+    </div>
+    
+    <div id="map" data-dojo-type="dijit/layout/ContentPane" data-dojo-props="region:'center'">
+    	<div id="search"></div>
+    	<!-- <div id="BasemapToggle"></div> -->
+    	
+    	<div data-dojo-type="dijit/TitlePane"  id="basemapGalleryDiv"
+             data-dojo-props="title:'Select Basemap', closable:false, open:false">
+          <div data-dojo-type="dijit/layout/ContentPane" style="width:380px; height:280px; overflow:auto;">
+            <div id="basemapGallery"></div>
+          </div>
+        </div>
+        
+        <div id="LocateButton"></div>
+		
+
+        <div id="disclosures" class="disclosures">
+                <a href="http://www.nature.org/about-us/governance/terms-of-use/index.htm?src=f9" target="_blank">Legal Disclosure</a> 
+                <a href="http://www.nature.org/about-us/governance/privacy-policy.xml?src=f6" target="_blank">Privacy Statement</a> 
+        </div>
+    </div>   	
+    </div>
+</body>
+</html>
